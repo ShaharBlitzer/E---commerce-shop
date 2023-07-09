@@ -52,3 +52,60 @@ Item - an indicator if both products are in the same item category.
 Color - an indicator if both products belong to the same group color, we divided colors into ["black", "white","silver"] and the rest.
 
 This approach gives us a very simple and logical way to look at connections between producs, also we can easily modify and play with our similarities score in order to always be able to change accoridng to trends and the gathering of data along the way.
+
+## Co-views algorithm:
+The  algorithm aims to identify the top 5 products that may be most relevant to a specific user. In simple, we try to measure the connection between every two products, so when you enter any product page, we will suggest the products with the strongest  correlation to the selected products
+
+For implementation, we chose some main events such as add to cart, view product ,purchase (in our case purchase means connecting to WhatsApp) and gave each event a score that reflects its strength. For example, add to cart received 10 points, purchase 50 points and ect.
+
+When a user makes an action,such as if he purchases a shirt, a log event is generated and saved in a log file (logs.json). 
+
+An example of purchasing an item and creating a log event respectively:
+
+*In Cart.jsx:*
+````
+
+const cartItems = (product) => {
+    const openWhatsApp = async () => {
+        add_new_log("purchase", product.id)
+
+````
+*In database.py*
+````
+def add_new_log(new_log):
+    # load the current items from the file
+    with open('src/backend/logs.json', 'r') as f:
+        try:
+            logs = json.load(f)
+            logs.append(new_log)   
+        except json.JSONDecodeError:
+            logs = []
+            logs.append(new_log) 
+    # write the updated logs to the file
+    with open('src/backend/logs.json', 'w') as f:
+        json.dump(logs, f, indent=4)
+````
+*The output in logs.json*
+```
+{
+        "eventName": "purchase",
+        "productId": 17
+    },
+```
+At the end of the session == when the user logged out, we assign a score to each item that created a log event. The calculation of the new score for each item, taking into account the previous score, is done by a Python algorithm found in recommend.py. When the user  logged out from the site, the updateRecommendByLogs function is called:
+
+```
+def updateRecommendByLogs():
+    logs = convertJsonToMatrix()
+    session1 = session()
+    for log in logs:
+        session1.add(Log(log['eventName'],log['productId']))
+    prodactDB = getProductsDB()
+    histograms = Histograms()
+    if prodactDB != None:
+         histograms.allHistograms.setProductsDict(prodactDB)
+    histograms.classifyProducts(session1.logs)
+    histograms.updateHistogarm()
+    insert_item(histograms.allHistograms.productsDict)
+    deleteLogs()
+```
